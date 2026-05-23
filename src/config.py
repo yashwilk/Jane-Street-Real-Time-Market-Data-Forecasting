@@ -80,6 +80,14 @@ class LGBMConfig:
 
 
 @dataclass
+class ModelConfig:
+    hidden_size      : int   = 64
+    n_heads          : int   = 5    # responder_6 through responder_10
+    dropout          : float = 0.1
+    gru_a_num_layers : int   = 3    # Model A: 3-layer GRU
+
+
+@dataclass
 class Configs:
     paths   : Config        = field(default_factory=Config)
     data    : DataConfig    = field(default_factory=DataConfig)
@@ -87,6 +95,7 @@ class Configs:
     online  : OnlineConfig  = field(default_factory=OnlineConfig)
     lgbm    : LGBMConfig    = field(default_factory=LGBMConfig)
     features: FeaturesConfig= field(default_factory=FeaturesConfig)
+    model   : ModelConfig   = field(default_factory=ModelConfig)
 
     def __post_init__(self):
         """Automatically create output directories when config is instantiated."""
