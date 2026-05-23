@@ -172,4 +172,51 @@ def evaluate_by_date(    df      : pl.DataFrame,
 
 
 
+if __name__ == "__main__":
+    print("=" * 55)
+    print("evaluate.py — Sanity Check")
+    print("=" * 55)
+ 
+    y_true  = np.array([1.0,  2.0, -1.0,  0.5])
+    weights = np.array([1.0,  1.0,  1.0,  1.0])
+    score   = weighted_r2(y_true, y_true, weights)
+    assert abs(score - 1.0) < 1e-9, f"Perfect prediction should be 1.0, got {score}"
+    print(f"Test 1 — Perfect predictions     : R² = {score:.6f} ✓")
+ 
+    y_pred_zero = np.zeros(4)
+    score       = weighted_r2(y_true, y_pred_zero, weights)
+    assert abs(score - 0.0) < 1e-9, f"Zero prediction should be 0.0, got {score}"
+    print(f"Test 2 — Predict zero (baseline) : R² = {score:.6f} ✓")
+ 
+    y_pred_bad = -y_true  
+    score      = weighted_r2(y_true, y_pred_bad, weights)
+    assert score < 0.0, f"Bad predictions should give R² < 0, got {score}"
+    print(f"Test 3 — Predict wrong direction : R² = {score:.6f} ✓ (negative)")
+
+    y_true2   = np.array([1.0, 1.0])
+    y_pred2   = np.array([1.0, 0.0])   # first row perfect, second row wrong
+    w_high    = np.array([10.0, 1.0])  # first row weighted heavily
+    w_low     = np.array([1.0, 10.0])  # second row weighted heavily
+    score_high = weighted_r2(y_true2, y_pred2, w_high)
+    score_low  = weighted_r2(y_true2, y_pred2, w_low)
+    assert score_high > score_low, "Higher weight on good prediction should give higher R²"
+    print(f"Test 4 — Weighted scoring        : high_w={score_high:.4f} > low_w={score_low:.4f} ✓")
+ 
+    y_true3   = np.array([1.0, np.nan, 2.0])
+    y_pred3   = np.array([1.0, 0.5,   2.0])
+    weights3  = np.array([1.0, 1.0,   1.0])
+    score     = weighted_r2(y_true3, y_pred3, weights3)
+    print(f"Test 5 — NaN handling            : R² = {score:.6f} ✓ (NaN row excluded)")
+ 
+    print("\nLoading real data for baseline check...")
+    from data_loader import load_all
+    _, df_val, _, _ = load_all()
+ 
+    baseline = baseline_score(df_val, split="val")
+    assert abs(baseline) < 1e-6, f"Baseline should be ~0.0, got {baseline}"
+    print(f"Test 6 — Real data baseline      : R² = {baseline:.6f} ✓")
+ 
+    print("\n" + "=" * 55)
+    print("evaluate.py — All checks passed.")
+    print("=" * 55)
  

@@ -56,6 +56,14 @@ class OnlineConfig:
 
 
 @dataclass
+class FeaturesConfig:
+    n_top_features      : int       = 16
+    rolling_window      : int       = 1000
+    add_time_id_feature : bool      = True
+    top_features        : List[str] = field(default_factory=list)
+
+
+@dataclass
 class LGBMConfig:
     n_estimators    : int   = 1000
     learning_rate   : float = 0.05
@@ -73,11 +81,12 @@ class LGBMConfig:
 
 @dataclass
 class Configs:
-    paths: Config=field(default_factory=Config)
-    data: DataConfig=field(default_factory=DataConfig)
-    train: TrainingConfig=field(default_factory=TrainingConfig)
-    online: OnlineConfig=field(default_factory=OnlineConfig)
-    lgbm: LGBMConfig=field(default_factory=LGBMConfig)
+    paths   : Config        = field(default_factory=Config)
+    data    : DataConfig    = field(default_factory=DataConfig)
+    train   : TrainingConfig= field(default_factory=TrainingConfig)
+    online  : OnlineConfig  = field(default_factory=OnlineConfig)
+    lgbm    : LGBMConfig    = field(default_factory=LGBMConfig)
+    features: FeaturesConfig= field(default_factory=FeaturesConfig)
 
     def __post_init__(self):
         """Automatically create output directories when config is instantiated."""
