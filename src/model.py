@@ -191,3 +191,36 @@ def build_model(
     logger.info(f"Model parameters: {n_params:,}")
 
     return model
+
+
+if __name__ == "__main__":
+    print("=" * 55)
+    print("model.py — Sanity Check")
+    print("=" * 55)
+
+    INPUT_SIZE = 125
+    SEQ_LEN    = 968
+    BATCH_SIZE = 1
+    device     = get_device()
+
+    # dummy input
+    x = torch.randn(SEQ_LEN, BATCH_SIZE, INPUT_SIZE).to(device)
+
+    # Model A
+    model_a          = build_model("A", input_size=INPUT_SIZE, seed=42)
+    preds_a, hidden_a = model_a(x)
+    print(f"Model A output shape : {preds_a.shape}")
+    print(f"Model A hidden shape : {hidden_a.shape}")
+    print(f"Model A parameters   : {sum(p.numel() for p in model_a.parameters()):,}")
+
+    # Model B
+    model_b          = build_model("B", input_size=INPUT_SIZE, seed=42)
+    preds_b, hidden_b = model_b(x)
+    print(f"Model B output shape : {preds_b.shape}")
+    print(f"Model B hidden shape : {hidden_b.shape}")
+    print(f"Model B parameters   : {sum(p.numel() for p in model_b.parameters()):,}")
+
+    # Key assertions
+    assert preds_a.shape == (SEQ_LEN, BATCH_SIZE, 5)
+    assert preds_b.shape == (SEQ_LEN, BATCH_SIZE, 5)
+    print("\nAll assertions passed ✓")
