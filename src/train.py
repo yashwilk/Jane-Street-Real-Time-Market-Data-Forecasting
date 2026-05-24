@@ -81,8 +81,23 @@ def prepare_day_batch(
 
 
 
-def compute_multitask_loss():
-    pass
+def compute_multitask_loss(predictions, y, weights):#retuens as tensor to be use in next loop same calcualtion as weightedr2
+    n_targets = y.shape[-1]
+    total_loss = torch.tensor(0.0, device=predictions.device)
+    w = weights.flatten()
+    w_sum = w.sum()
+    for t in range(n_targets):
+        pred_t = predictions[:, :, t].flatten()
+        true_t = y[:, :, t].flatten()
+        mean_t = (w * true_t).sum() / w_sum
+        ss_res = (w * (true_t - pred_t) ** 2).sum()
+        ss_tot = (w * (true_t - mean_t) ** 2).sum()
+        r2 = 1.0 - ss_res / (ss_tot + 1e-8)
+        total_loss = total_loss - r2
+    return total_loss / n_targets
+
+
+
 
 def train_one_epoch(model, df_train, optimizer, feature_cols, target_cols, device):
 
@@ -103,3 +118,151 @@ def train_one_epoch(model, df_train, optimizer, feature_cols, target_cols, devic
         total_loss+=loss.item()
     avg_loss = total_loss / n_days
     return avg_loss
+
+
+# 4.  EVALUATE ONE EPOCH
+def evaluate_one_epoch(
+    model:nn.Module,
+    df_val:pl.DataFrame,
+    feature_cols:List[str],
+    device:torch.device
+)->float:#Only predicts responder_6
+
+    model.eval()
+
+    date_ids=sorted(df_val["date_id"].unique().to_list())
+    all_preds=[]
+    all_targets=[]
+    all_weights=[]
+    with torch.no_grad():
+        for date_id in date_ids:
+            df_day=df_val.filter(pl.col("date_id")==date_id)
+            X,y,weights=prepare_day_batch(df_day,feature_cols,[CFG.data.target],device)
+            prediction,_=model(X)
+
+            pred_r6=prediction[:,:,0].flatten().cpu().numpy()
+            true_r6=y[:,:,0].flatten().cpu().numpy()
+            w= weights.flatten().cpu().numpy()
+            all_preds.append(pred_r6)
+            all_targets.append(true_r6)
+            all_weights.append(w)
+
+        all_preds=np.concatenate(all_preds)
+        all_targets=np.concatenate(all_targets)
+        all_weights=np.concatenate(all_weights)
+
+        score=weighted_r2(all_targets,all_preds,all_weights)
+    return score
+
+
+
+
+def train_model(
+        arcitecture:str,
+        seed:int,
+        df_train:pl.DataFrame,
+        df_val:pl.DataFrame,
+        feature_cols    : List[str],
+        all_feature_cols: List[str],
+)-> Tuple[nn.Module, Dict]:
+
+    logger.info(f"Training Model {arcitecture} — seed {seed}")
+
+    device=get_device()
+# ── Build model
+    model=build_model(
+        arcitecture, len(feature_cols), seed=seed
+    )
+    optimizer=torch.optim.Adam(model.parameters(), lr=CFG.train.learning_rate)
+
+    target_cols = [CFG.data.target] + CFG.data.aux_targets
+
+    best_val_score=-np.inf
+    best_weights=None
+    epoch_no_improve=0
+
+
+    history={
+        "train_loss":[],
+        "val_score":[]
+    }
+# ── Training loop
+    for epoch in range(CFG.train.max_epochs):
+        start_time=time.time()
+        train_loss=train_one_epoch(model, df_train, optimizer, feature_cols, target_cols, device)
+        val_score = evaluate_one_epoch(model, df_val, feature_cols, device)
+        elapsed=time.time()-start_time
+
+        logger.info(
+            f"Epoch {epoch+1:3d}/{CFG.train.max_epochs} | "
+            f"Train Loss: {train_loss:.6f} | "
+            f"Val R²: {val_score:.6f} | "
+            f"Time: {elapsed:.1f}s"
+        )
+
+        history["train_loss"].append(train_loss)
+        history["val_score"].append(val_score)
+# ── Save best model
+        if val_score>best_val_score:
+            best_val_score=val_score
+            best_weights={k:v.clone() for k,v in model.state_dict().items()}
+            epoch_no_improve=0
+            logger.info(f"New best val R²: {best_val_score:.6f} ✓")
+        else:
+            epoch_no_improve+=1
+            logger.info(
+                f"No improvement for {epoch_no_improve}/{CFG.train.early_stop} epochs"
+            )
+
+# ── Early stopping
+
+        if epoch_no_improve>=CFG.train.early_stop:
+            logger.info(f"Early stopping at epoch {epoch+1}")
+            break
+
+
+    model.load_state_dict(best_weights)
+    logger.info(f"Loaded best weights — Val R²: {best_val_score:.6f}")
+    model_path = CFG.paths.models_dir / f"model_{arcitecture}_seed{seed}.pt"
+    torch.save(model.state_dict(), model_path)
+    logger.info(f"Model saved to: {model_path}")
+
+    return model, history
+
+
+
+
+def train_all_model(
+  df_train:pl.DataFrame,
+  df_val:    pl.DataFrame,
+  feat_cols: List[str],
+)->dict:
+
+
+    all_models={}
+    all_histories={}
+
+    for arcitecture in["A","B"]:
+        for seed in CFG.train.seed:
+            key=f"{arcitecture}_{seed}"
+            model,history = train_model(
+                                arcitecture      = arcitecture,
+                    seed             = seed,
+                    df_train         = df_train,
+                    df_val           = df_val,
+                    feature_cols     = feat_cols,
+                    all_feature_cols = feat_cols,
+            )
+            all_models[key]    = model
+            all_histories[key] = history
+
+            logger.info(f"Model {key} complete. Best val R²: {max(history['val_score']):.6f}")
+
+    logger.info("=" * 50)
+    logger.info("All 6 models trained.")
+    logger.info("=" * 50)
+
+    return all_models, all_histories
+
+
+
