@@ -28,7 +28,7 @@ class DataConfig:
     val_start: int=1299
     val_end: int=1498
     test_start: int=1499
-    id_col: List[str]=field(default_factory=lambda: ["date_id","time_id","symbol_id"])
+    id_col: List[str]=field(default_factory=lambda: ["date_id","time_id","symbol_id"]) #witinn dataclas it is direct list shouldnt be places as it is mutable.field create the list . and default_factory creates fresh default objext
     target: str="responder_6"
     drop_features:List[str]=field(default_factory=lambda:["feature_09", "feature_10", "feature_11"])
     all_responders: list[str]=field(default_factory=lambda:[f"responder_{i}"for i in range(9)])

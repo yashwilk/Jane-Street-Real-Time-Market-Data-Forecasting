@@ -30,6 +30,13 @@ def load_train_data(path:Path=CFG.paths.train_path)->pl.DataFrame:
 
     return df
 
+"""
+load_train_data
+|
+if path doesnt exist KeyError
+|
+read file using ploas(conver to pl df)
+"""
 
 
 
@@ -47,6 +54,16 @@ def filter_stable_period(df :pl.DataFrame)->pl.DataFrame:
     )
 
     return df
+
+
+"""
+filter_stable_period - take the pl dataframe
+|
+remove first 700 rows usning pl.filter
+pandas version
+df = df[df["date_id"] > CFG.data.date_start]
+"""
+
 
 
 def split_data(df: pl.DataFrame)->Tuple[pl.DataFrame,pl.DataFrame,pl.DataFrame]:
@@ -86,6 +103,18 @@ def split_data(df: pl.DataFrame)->Tuple[pl.DataFrame,pl.DataFrame,pl.DataFrame]:
     return df_train, df_val, df_test
 
 
+"""
+split_data -takes the filtered df- return 3 dfs 
+|
+filter the main dfs by date ids into 3 df
+|
+retun 3 df
+"""
+
+
+
+
+
 
 # 4.  GET FEATURE AND RESPONDER COLUMN NAMES
 def get_feature_cols(df:pl.DataFrame)-> list:
@@ -100,8 +129,23 @@ def get_feature_cols(df:pl.DataFrame)-> list:
  
     return feature_cols
 
+
+"""
+get_feature_cols- take the main df
+|
+return all get_feature_cols
+|
+drop feature  which are not needed
+|
+return the final feature columns as list
+"""
+
+
+
 def get_responder_cols(df: pl.DataFrame) -> list:
     return [c for c in df.columns if c.startswith("responder_")]
+
+"""get_responder_cols takes df and returns list of responders"""
 
 
 
@@ -116,6 +160,8 @@ def load_feature_meta()->pd.DataFrame:
  
     return df_meta
 
+
+
 def load_responders_meta() -> pd.DataFrame:
 
     path = CFG.paths.responder_csv
@@ -127,6 +173,8 @@ def load_responders_meta() -> pd.DataFrame:
     logger.info(f"Loaded responders metadata: {len(df_meta)} rows")
  
     return df_meta
+
+
 
 
 def load_lags(path: Path = CFG.paths.lags_path) -> pl.DataFrame:

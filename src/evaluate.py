@@ -88,6 +88,26 @@ def weighted_r2(
     return float(r2)
 
 
+"""weighted_r2-takes in y true,ypred,weights 
+|
+call_numpy_ function to convert all 3 into np.array
+|
+checks len ytrue and  y_pred
+|
+checks length of y true and weights
+|
+check if sum of weight is not 0
+|
+valid mask check all non empty rows and weight>0
+|
+calc weighted sum of squared errors -N
+|
+weighted sum of squared true
+|
+return r2 as float
+"""
+
+
 def evaluate_predictions(
     df      : pl.DataFrame,
     y_pred  : ArrayLike,
@@ -100,7 +120,13 @@ def evaluate_predictions(
  
     return score
 
-
+"""
+evaluate_predictions
+|
+takes in df to extract ytrue,takes in y_pred,split
+|
+computes weighted_r2
+"""
 
 def _to_numpy(arr: ArrayLike) -> np.ndarray:
 
@@ -112,7 +138,10 @@ def _to_numpy(arr: ArrayLike) -> np.ndarray:
         return arr.astype(np.float64)
     else:
         return np.array(arr, dtype=np.float64)
-    
+
+"""_to_numpy-takes pl.series,pd,series,np,Array
+|
+converts all input to np.array"""
 
 
 # 4.  BASELINE SCORE (PREDICT ZERO)
@@ -124,6 +153,16 @@ def baseline_score(df: pl.DataFrame, split: str = "unknown") -> float:
     logger.info(f"Baseline (predict zero) score [{split}]: {score:.6f}")
 
     return score
+
+"""
+baseline_score
+|
+takes df_val
+|
+creates zeros same length as df
+|
+computes baseling score
+"""
 
 
 # 3.  EVALUATE ACROSS DATE RANGES
@@ -168,6 +207,30 @@ def evaluate_by_date(    df      : pl.DataFrame,
     logger.info(f"Score by date range:\n{results_df.to_string(index=False)}")
  
     return results_df
+
+
+"""
+evaluate_by_date-taked df,ypred and bin count
+|
+selects dateid,target cols and weightcals form polars df can convert to pandas df
+|
+to dhis df add ypred 
+|
+find the min date and max date
+|
+create an array of date base
+|
+loop through all the index of the bin Array
+|
+split the df based on the bins
+|
+check if the length of df is ==0
+|
+calculate weighted r2 for this chuck of df
+|
+collect all the chunks
+"""
+
 
 
 

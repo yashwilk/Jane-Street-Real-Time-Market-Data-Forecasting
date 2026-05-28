@@ -81,22 +81,50 @@ def prepare_day_batch(
 
 
 
-def compute_multitask_loss(predictions, y, weights):#retuens as tensor to be use in next loop same calcualtion as weightedr2
-    n_targets = y.shape[-1]
-    total_loss = torch.tensor(0.0, device=predictions.device)
-    w = weights.flatten()
-    w_sum = w.sum()
-    for t in range(n_targets):
-        pred_t = predictions[:, :, t].flatten()
-        true_t = y[:, :, t].flatten()
-        mean_t = (w * true_t).sum() / w_sum
-        ss_res = (w * (true_t - pred_t) ** 2).sum()
-        ss_tot = (w * (true_t - mean_t) ** 2).sum()
-        r2 = 1.0 - ss_res / (ss_tot + 1e-8)
-        total_loss = total_loss - r2
-    return total_loss / n_targets
-
-
+def compute_multitask_loss(
+    predictions : torch.Tensor,
+    y           : torch.Tensor,
+    weights     : torch.Tensor,
+) -> torch.Tensor:
+    """
+    Compute summed weighted R² loss across all target heads.
+ 
+    We negate R² because optimizers minimize loss.
+    Higher R² = lower loss = better model.
+ 
+    Loss = -( R²_r6 + R²_r7 + R²_r8 + R²_r9 + R²_r10 )
+ 
+    Args:
+        predictions : Model output. Shape (seq_len, n_symbols, n_targets)
+        y           : True targets.  Shape (seq_len, n_symbols, n_targets)
+        weights     : Row weights.   Shape (seq_len, n_symbols)
+ 
+    Returns:
+        torch.Tensor: Scalar loss value.
+    """
+    n_targets = predictions.shape[-1]
+    total_loss = torch.tensor(0.0, device=predictions.device, requires_grad=True)
+ 
+    for i in range(n_targets):
+        # Flatten seq_len and n_symbols dimensions
+        y_pred_i  = predictions[:, :, i].flatten()   # (seq_len × n_symbols,)
+        y_true_i  = y[:, :, i].flatten()             # (seq_len × n_symbols,)
+        weights_i = weights.flatten()                 # (seq_len × n_symbols,)
+ 
+        # Weighted zero-mean R² — PyTorch version for backprop
+        numerator   = (weights_i * (y_true_i - y_pred_i) ** 2).sum()
+        denominator = (weights_i * y_true_i ** 2).sum()
+ 
+        if denominator > 1e-8:
+            r2   = 1.0 - numerator / denominator
+            loss = -r2   # negate because we minimize
+        else:
+            loss = torch.tensor(0.0, device=predictions.device)
+ 
+        total_loss = total_loss + loss
+ 
+    return total_loss
+ 
 
 
 def train_one_epoch(model, df_train, optimizer, feature_cols, target_cols, device):
@@ -223,7 +251,7 @@ def train_model(
 
     model.load_state_dict(best_weights)
     logger.info(f"Loaded best weights — Val R²: {best_val_score:.6f}")
-    model_path = CFG.paths.models_dir / f"model_{arcitecture}_seed{seed}.pt"
+    model_path = CFG.paths.model_dir / f"model_{arcitecture}_seed{seed}.pt"
     torch.save(model.state_dict(), model_path)
     logger.info(f"Model saved to: {model_path}")
 
@@ -263,6 +291,8 @@ def train_all_model(
     logger.info("=" * 50)
 
     return all_models, all_histories
+
+
 
 
 
