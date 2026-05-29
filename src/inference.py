@@ -100,7 +100,7 @@ def run_inference_single(
         df_day = df_test.filter(pl.col("date_id") == date_id)
         predictions_np, x, y_true, weights, hidden = predict_one_day(model, df_day, feature_cols, hidden, device)
 
-        true_np = y_true[:, 0].flatten().cpu().numpy()
+        true_np = y_true[:, :, 0].flatten().cpu().numpy()
         weights_np = weights.flatten().cpu().numpy()
 
 
@@ -133,7 +133,7 @@ def run_inference_single(
     all_true_np = np.concatenate(all_true)
     all_weights_np = np.concatenate(all_weights)
     final_r2 = weighted_r2(all_true_np, all_preds, all_weights_np)
-    return all_predictions, final_r2
+    return all_preds, final_r2
 
 
 
@@ -152,13 +152,24 @@ def run_inference(
     for key, model in all_models.items():
         predictions, r2 = run_inference_single(model, df_test, feature_cols)
         all_model_predictions.append(predictions)
-        all_r2.append(r2)
-
-    ensemble_preds = np.mean([np.concatenate(preds) for preds in all_model_predictions], axis=0)
-    mean_r2 = float(np.mean(all_r2))
-    logger.info(f"Ensemble R²: {mean_r2:.6f}")
-    return ensemble_preds, mean_r2
-
+        logger.info(f"Model {key} — Test R²: {r2:.6f}")
+ 
+    # ── Ensemble: simple average ──────────────────────────────────
+    ensemble_predictions = np.mean(all_model_predictions, axis=0)
+ 
+    # ── Final ensemble score ──────────────────────────────────────
+    df_test_pd  = df_test.select([CFG.data.target, CFG.data.weight_col]).to_pandas()
+    ensemble_r2 = weighted_r2(
+        df_test_pd[CFG.data.target].values,
+        ensemble_predictions,
+        df_test_pd[CFG.data.weight_col].values,
+    )
+ 
+    logger.info("=" * 50)
+    logger.info(f"Ensemble Test R²: {ensemble_r2:.6f}")
+    logger.info("=" * 50)
+ 
+    return ensemble_predictions, ensemble_r2
 
 
 def load_trained_models(
@@ -191,3 +202,55 @@ def load_trained_models(
 
     logger.info(f"Loaded {len(all_models)} models")
     return all_models
+
+
+if __name__ == "__main__":
+    print("=" * 55)
+    print("inference.py — Sanity Check")
+    print("=" * 55)
+ 
+    from data_loader import load_all
+    from features import build_features
+    from train import train_model
+ 
+    # Load data
+    df_train, df_val, df_test, feature_cols = load_all()
+ 
+    # Use small subset for sanity check
+    df_train_small = df_train.filter(pl.col("date_id") <= 704)
+    df_val_small   = df_val.filter(pl.col("date_id") <= 1303)
+    df_test_small  = df_test.filter(pl.col("date_id") <= 1503)
+ 
+    # Build features
+    df_train_small, df_val_small, df_test_small, all_feature_cols = build_features(
+        df_train_small, df_val_small, df_test_small, feature_cols
+    )
+ 
+    # Train one small model
+    CFG.train.max_epochs = 2
+    model, _ = train_model(
+        architecture     = "B",
+        seed             = 42,
+        df_train         = df_train_small,
+        df_val           = df_val_small,
+        feature_cols     = all_feature_cols,
+        all_feature_cols = all_feature_cols,
+    )
+ 
+    # Run inference on small test set
+    predictions, r2 = run_inference_single(
+        model        = model,
+        df_test      = df_test_small,
+        feature_cols = all_feature_cols,
+    )
+ 
+    print(f"\nPredictions shape : {predictions.shape}")
+    print(f"Test R²           : {r2:.6f}")
+    print(f"Expected           : small positive or negative number close to 0")
+ 
+    assert predictions.shape[0] > 0, "No predictions generated"
+    print("\nAll assertions passed ✓")
+ 
+    print("\n" + "=" * 55)
+    print("inference.py — Sanity Check passed.")
+    print("=" * 55)
