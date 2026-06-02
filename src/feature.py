@@ -23,6 +23,17 @@ def impute_nulls(df: pl.DataFrame, feature_cols: List[str]) -> pl.DataFrame:
  
     return df
 
+"""
+impute null runs 3 time for 3 splits so the input is only 1 df and feature cols
+impute_nulls-leads df and featurecosl
+|
+calculates the null rows for each feature-sum across column and retuens 1 calue
+    pands equivalent df[feature_cols].isnull().sum().sum()
+|
+fill all the null rows with 0
+Pandas equivalent df[feature_cols] = df[feature_cols].fillna(0.0)
+"""
+
 
 def select_top_features(df:pl.DataFrame,feature_cols:List[str],n:int=CFG.features.n_top_features)->List[str]:
         logger.info(f"Selecting top {n} features by correlation with {CFG.data.target}")
@@ -35,7 +46,7 @@ def select_top_features(df:pl.DataFrame,feature_cols:List[str],n:int=CFG.feature
         correlation={}
         for col in feature_cols:
             feat_vals = df_filled[col].to_numpy().astype(np.float64)
-            corr=np.corrcoef(feat_vals,target_vals)[0,1]
+            corr=np.corrcoef(feat_vals,target_vals)[0,1]#Pearson correlation coefficient we take(x,y)
             correlation[col]=abs(corr) if not np.isnan(corr) else 0.0
         top_features=sorted(correlation,key=correlation.get,reverse=True)[:n]
         logger.info(f"Top {n} features selected: {top_features[:5]} ...")
@@ -46,7 +57,24 @@ def select_top_features(df:pl.DataFrame,feature_cols:List[str],n:int=CFG.feature
 
         return top_features
 
+""" 
+select_top_features-loads the df,feature cols and top feature count
+|
+creates a copy of df fill null to both feature and target cols .select() to create duumy .with_colums ()to rransform existinf df
+|
+conver target columns to np array
+|
+loop through the feature feature_cols
+|
+convert then to numpy array
+|
+crrate corrcoef between the atrget np array and this feat np array 
+|
+create a dictionary of the col name and the score
+|
+sort  the dictionary based on values
 
+"""
 # 3.  MARKET AVERAGES
 def add_market_averages(
     df          : pl.DataFrame,
@@ -77,6 +105,16 @@ def add_market_averages(
 #   date_id=800, time_id=5, symbols=[0,1,2,3]
 #   feature_00 values = [0.3, 0.2, 0.1, 0.4] → mean = 0.25
 #   All 4 rows get feature_00_market_avg = 0.25
+"""
+add_market_averages-takes df and top features from above
+|
+for every feature groupby dateid and timeid and calcualte the mean for each dateid
+|
+add these columns to existing df
+"""
+
+
+
 
 
 # 4.  ROLLING STATISTICS PER SYMBOL
@@ -111,6 +149,15 @@ pandas equivalent
           .reset_index(level=0, drop=True)
     )
     
+"""
+"""
+add_rolling_stats-taken in df,topfeatures and windowsize
+|
+sort the df by symbol,date and time_max
+|
+for every feat created rolling mean and standardize
+|
+adds rolling stats feature to the df
 """
 
 
@@ -164,6 +211,12 @@ def standardize(
 
 
 #All 125 columns get standardized in one go.
+"""
+standardize takes train test and val df 
+|
+find mean and std of each col one value each onlfy for train df
+|
+use meand and std and apply standardization to ever value in each col of train test and val df"""
 
 
 def add_auxiliary_targets(df: pl.DataFrame) -> pl.DataFrame:
@@ -198,6 +251,14 @@ def add_auxiliary_targets(df: pl.DataFrame) -> pl.DataFrame:
 
     return df
 
+"""
+add_auxiliary_targets-take entire train df only
+|
+add responder_8 which is 4 days rolling average + shifts it by 4 mode days 
+|
+adds responder 6 which is 10 daysolling average + shifts it by 60 mode days 
+
+"""
 
 # 7.  ADD TIME_ID AS FEATURE
 def add_time_id_feature(df: pl.DataFrame) -> pl.DataFrame:
@@ -213,6 +274,16 @@ def add_time_id_feature(df: pl.DataFrame) -> pl.DataFrame:
     logger.info("Added time_id_norm feature (normalized to [0, 1])")
  
     return df
+
+"""
+add_time_id_feature takes the df
+|
+takes the distinct time ids -1
+|
+creates a new column called  time_id_norm
+|
+divides each time id/max count of time ids
+"""
 
 
 
@@ -275,6 +346,9 @@ def build_features(
     )
 
 
+
+
+
 #Step 8: Standardize
     df_train, df_val, df_test = standardize(
         df_train, df_val, df_test, all_feature_cols
@@ -292,7 +366,21 @@ def build_features(
  
     return df_train, df_val, df_test, all_feature_cols
  
-
+"""takes in train val and test df and feature cols- generated from data loader
+impute nullsfor all 3 dfs-input df and feature cols
+|
+select the top 16 features only for train 
+|
+calculate marketaverage for all 3 dfs uising top features only
+|
+calculate rolling stats for 3 dfs using top features only
+|
+add time id feature for all 3 dfs
+|
+add auxiliary targets for train only
+|
+standardize all features for all 3 dfs using train stats only
+"""
 
 
 if __name__ == "__main__":

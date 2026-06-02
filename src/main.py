@@ -48,7 +48,7 @@ def main (skip_training: bool = False) -> None:
     if skip_training:
         logger.info("\nStep 3: Loading saved models from disk...")
         all_models = load_trained_models(all_feature_cols)
-
+#load model dictionary with 6 models and its weights
     else:
         logger.info("\nStep 3: Training all 6 models...")
         all_models, all_histories = train_all_model(
@@ -62,3 +62,48 @@ def main (skip_training: bool = False) -> None:
             best_score = max(history["val_score"])
             best_epoch = history["val_score"].index(best_score) + 1
             logger.info(f"  Model {key:8s} : R² = {best_score:.6f} (epoch {best_epoch})")
+
+    logger.info("\nStep 4: Running ensemble inference on test set...")
+    ensemble_predictions, ensemble_score = run_ensemble(
+        df_test      = df_test,
+        feature_cols = all_feature_cols,
+        all_models   = all_models,
+    )
+
+
+
+
+
+
+
+
+
+    total_time = time.time() - start_time
+ 
+    logger.info("\n" + "=" * 60)
+    logger.info("FINAL RESULTS")
+    logger.info("=" * 60)
+    logger.info(f"Ensemble Test R²  : {ensemble_score:.6f}")
+    logger.info(f"Total time        : {total_time/60:.1f} minutes")
+    logger.info(f"Predictions saved : {CFG.paths.predictions_dir / 'ensemble_predictions.npy'}")
+    logger.info("=" * 60)
+ 
+    # ── Context for the score ─────────────────────────────────────
+    logger.info("\nScore context:")
+    logger.info("  R² = 0.000  → baseline (predicting zero)")
+    logger.info("  R² = 0.005  → decent model")
+    logger.info("  R² = 0.010  → good model")
+    logger.info("  R² = 0.0112 → 8th place solution target")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Jane Street Pipeline")
+    parser.add_argument(
+        "--skip-training",
+        action  = "store_true",
+        default = False,
+        help    = "Skip training and load saved models from disk"
+    )
+    args = parser.parse_args()
+
+    main(skip_training=args.skip_training)
